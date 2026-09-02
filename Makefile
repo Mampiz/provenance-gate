@@ -103,6 +103,10 @@ lint: ## golangci-lint (uses the binary on PATH, or go run as a fallback)
 		echo "golangci-lint not on PATH, skipping is not an option: install it or run 'make vet'"; exit 1; \
 	fi
 
+.PHONY: lint-shell
+lint-shell: tools ## shellcheck every verifier and helper script
+	@./bin/shellcheck infra/scripts/*.sh && echo "shellcheck clean"
+
 ##@ Housekeeping
 
 .PHONY: clean

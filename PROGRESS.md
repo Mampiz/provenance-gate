@@ -6,8 +6,8 @@ limitations": a verifier that does not pass means the phase is not done.
 
 | Phase | What it builds | Verifier | State |
 |---|---|---|---|
-| F0 | Go module, kind cluster, cert-manager, `make bootstrap` | `make verify-f0` | in progress |
-| F1 | Reusable workflow producing SLSA provenance, keyless cosign signature, SBOM | `gh attestation verify` and `cosign verify` against the published image | not started |
+| F0 | Go module, kind cluster, cert-manager, `make bootstrap` | `make verify-f0` | done |
+| F1 | Reusable workflow producing SLSA provenance, keyless cosign signature, SBOM | `make verify-f1` | in progress |
 | F2 | Kyverno baseline policy corpus, Audit then Enforce | Chainsaw suite: each policy rejects its bad case and admits its good one | not started |
 | F3 | The admission webhook: digest resolution, keyless verification, provenance matching | envtest plus e2e in kind, three cases | not started |
 | F4 | Binding a `WebApp` to the workflow the IDP generated for it | e2e: scaffold, signed build, admitted; foreign image, rejected | not started |

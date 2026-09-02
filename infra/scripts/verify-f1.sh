@@ -30,6 +30,14 @@ BUILDER_REF="${BUILDER_REF:-refs/heads/main}"
 BUILDER_IDENTITY="https://github.com/${REPO}/${BUILDER_WORKFLOW}@${BUILDER_REF}"
 
 pass() { printf '  \033[32mPASS\033[0m  %s\n' "$1"; }
+# jq prints the string "null" for a missing key, which is not the same as an
+# empty result and would otherwise sail through a plain emptiness check.
+require_field() {
+  local what="$1" value="$2"
+  if [ -z "${value}" ] || [ "${value}" = "null" ]; then
+    fail "provenance carries no ${what}"
+  fi
+}
 fail() { printf '  \033[31mFAIL\033[0m  %s\n' "$1" >&2; exit 1; }
 step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 
@@ -87,8 +95,8 @@ wf_path="$(jq -r '.[0].verificationResult.statement.predicate.buildDefinition.ex
 wf_ref="$(jq -r '.[0].verificationResult.statement.predicate.buildDefinition.externalParameters.workflow.ref' "${WORK}/provenance.json")"
 [ "${wf_repo}" = "https://github.com/${REPO}" ] \
   || fail "provenance names repository '${wf_repo}', expected 'https://github.com/${REPO}'"
-[ -n "${wf_path}" ] && [ "${wf_path}" != "null" ] || fail "provenance carries no workflow path"
-[ -n "${wf_ref}" ] && [ "${wf_ref}" != "null" ] || fail "provenance carries no workflow ref"
+require_field "workflow path" "${wf_path}"
+require_field "workflow ref" "${wf_ref}"
 pass "repository ${wf_repo}"
 pass "workflow ${wf_path} at ${wf_ref}"
 
