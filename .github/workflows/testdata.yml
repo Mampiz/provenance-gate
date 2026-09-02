@@ -1,0 +1,70 @@
+# Publishes the two negative subjects the F3 verifier needs.
+#
+# The whole argument of this project rests on a verifier that can tell three
+# situations apart, and two of them cannot be faked:
+#
+#   * an image with NO attestation at all, which is what an ordinary build
+#     produces, and
+#   * an image with a PERFECTLY VALID attestation, signed by the same trusted
+#     builder, that belongs to a different workflow.
+#
+# The second is the one that carries the argument, and it has to be real. A
+# hand-written attestation, or one signed by a key made up for the test, would
+# only prove that a forgery is rejected, which nobody doubted. This publishes an
+# image built by the genuine reusable workflow from a genuine caller, and the
+# verifier refuses it because that caller is not the one the trust root names.
+
+name: testdata
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - testdata/**
+      - .github/workflows/testdata.yml
+      - .github/workflows/build-sign.yml
+  workflow_dispatch:
+
+concurrency:
+  group: testdata-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Subject 2: no attestation, no signature. Built and pushed the ordinary way.
+  unsigned:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push without signing anything
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: testdata/image
+          push: true
+          tags: ghcr.io/mampiz/provenance-gate-unsigned:current
+          provenance: false
+          sbom: false
+
+  # Subject 3: signed by the real builder, from a different caller workflow.
+  # The provenance will name .github/workflows/testdata.yml as the workflow,
+  # which is exactly what the trust root does not allow.
+  decoy:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/build-sign.yml
+    with:
+      image: ghcr.io/mampiz/provenance-gate-decoy
+      context: testdata/image
+      extra-tag: current

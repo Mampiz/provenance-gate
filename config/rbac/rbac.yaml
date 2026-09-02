@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: provenance-gate-system
+  labels:
+    app.kubernetes.io/name: provenance-gate
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: provenance-gate
+  namespace: provenance-gate-system
+---
+# What the webhook itself may do. Read the trust registry, write its status,
+# nothing else. It never reads pods, secrets or the workloads it admits: the
+# object under admission arrives in the request, so there is no reason for this
+# ServiceAccount to be able to fetch one.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provenance-gate
+rules:
+  - apiGroups: [provenance.miportfolio.com]
+    resources: [buildidentities]
+    verbs: [get, list, watch]
+  - apiGroups: [provenance.miportfolio.com]
+    resources: [buildidentities/status]
+    verbs: [get, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: provenance-gate
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: provenance-gate
+subjects:
+  - kind: ServiceAccount
+    name: provenance-gate
+    namespace: provenance-gate-system
+---
+# Who may WRITE the trust registry. This is the part that makes the check mean
+# anything.
+#
+# A BuildIdentity says which builds a workload may run. If the owner of a
+# service could write their own, they would point it at a repository they
+# control, build a genuinely signed image there, and pass. The trust root has to
+# be writable by the platform that scaffolds services and by nobody else,
+# including the owner of the service it describes.
+#
+# This role is bound to the platform's ServiceAccount, not handed out with the
+# namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provenance-gate-registrar
+rules:
+  - apiGroups: [provenance.miportfolio.com]
+    resources: [buildidentities]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+# Everyone else can look but not touch. Being able to read the trust root is
+# useful: it is how a developer finds out why their deploy was refused.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provenance-gate-viewer
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+  - apiGroups: [provenance.miportfolio.com]
+    resources: [buildidentities]
+    verbs: [get, list, watch]

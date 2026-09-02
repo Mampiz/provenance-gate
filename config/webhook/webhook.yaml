@@ -1,0 +1,106 @@
+# The admission webhook configuration.
+#
+# Four settings here are the difference between a security control and an
+# outage, and each one is called out where it appears:
+#   * a namespaceSelector that excludes kube-system and this webhook's own
+#     namespace
+#   * a low, explicit timeoutSeconds
+#   * failurePolicy, which starts at Ignore
+#   * a CA bundle injected by cert-manager rather than patched in by the process
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: provenance-gate-selfsigned
+  namespace: provenance-gate-system
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: provenance-gate-serving-cert
+  namespace: provenance-gate-system
+spec:
+  secretName: provenance-gate-webhook-cert
+  dnsNames:
+    - provenance-gate-webhook.provenance-gate-system.svc
+    - provenance-gate-webhook.provenance-gate-system.svc.cluster.local
+  issuerRef:
+    name: provenance-gate-selfsigned
+    kind: Issuer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: provenance-gate-webhook
+  namespace: provenance-gate-system
+spec:
+  selector:
+    app.kubernetes.io/name: provenance-gate
+  ports:
+    - name: https
+      port: 443
+      targetPort: webhook
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: provenance-gate
+  annotations:
+    # cert-manager writes the issuing CA into every webhook's clientConfig.
+    # Without it the API server cannot verify the webhook's certificate and
+    # reports a TLS error that looks like the webhook being down.
+    cert-manager.io/inject-ca-from: provenance-gate-system/provenance-gate-serving-cert
+webhooks:
+  - name: workloads.provenance.miportfolio.com
+    admissionReviewVersions: [v1]
+    sideEffects: None
+
+    # Ignore, deliberately, until the end of the phase. Fail means that if this
+    # webhook is unavailable, nothing can be created in any namespace it
+    # matches. That is the correct posture for a security control and the wrong
+    # one for a control that has not yet been shown to be reliable. See
+    # docs/decisions/0008 for the trade-off and when it flips.
+    failurePolicy: Ignore
+
+    # Five seconds is the ceiling; the process gives up at four so the API
+    # server receives an answer rather than a timeout. Verification involves a
+    # registry round trip and a transparency-log check, and the cache is what
+    # keeps the common case far below this.
+    timeoutSeconds: 5
+
+    namespaceSelector:
+      matchExpressions:
+        # kube-system and this webhook's own namespace are excluded, and this is
+        # not a convenience. A webhook with failurePolicy Fail that matches the
+        # namespace it runs in cannot be restarted once it is down: the API
+        # server refuses to create its own replacement pod because it cannot
+        # reach the webhook that would have to admit it. The cluster is then
+        # unfixable from inside.
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - kube-public
+            - kube-node-lease
+            - provenance-gate-system
+            - cert-manager
+            - kyverno
+            - local-path-storage
+    clientConfig:
+      service:
+        name: provenance-gate-webhook
+        namespace: provenance-gate-system
+        path: /validate-workload-provenance
+        port: 443
+    rules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+        scope: Namespaced
+      - apiGroups: [platform.miportfolio.com]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [webapps]
+        scope: Namespaced
