@@ -217,10 +217,14 @@ rather than presented as a choice. Full figures and the argument in
 
 | | |
 |---|---|
+| [Getting started](docs/getting-started.md) | Run it locally, and guard a namespace of your own |
+| [Architecture](docs/architecture.md) | The four pieces and which one owns what |
+| [Troubleshooting](docs/troubleshooting.md) | The failures you will actually hit |
 | [Numbers](docs/benchmarks.md) | Latency, memory and coverage, and what measuring changed |
 | [Design decisions](docs/decisions/README.md) | Ten records, including the one that says an earlier one was wrong |
 | [IDP integration](integration/idp-backstage/README.md) | What the platform has to change, and why the order matters |
 | [Build log](PROGRESS.md) | The phase graph and what each verifier proves |
+| [Contributing](CONTRIBUTING.md) | Layout, verifiers, and the one change that gets rejected |
 
 ## License
 
