@@ -20,6 +20,20 @@ jobs:
       - run: go test -race -coverprofile=coverage.out ./...
       - run: go build ./...
 
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.13.2
+
+      - name: The generated CRD and deepcopy code are current
+        # controller-gen output is committed, so a change to api/ that was not
+        # regenerated would ship a CRD that does not match the Go types. The
+        # symptom is a field silently missing from the schema.
+        run: |
+          make manifests
+          git diff --exit-code -- api config/crd \
+            || { echo "::error::run 'make manifests' and commit the result"; exit 1; }
+
   shell:
     runs-on: ubuntu-latest
     steps:

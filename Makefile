@@ -15,6 +15,7 @@ CERT_MANAGER_URL     ?= https://github.com/cert-manager/cert-manager/releases/do
 KYVERNO_VERSION      ?= v1.19.0
 KYVERNO_URL          ?= https://github.com/kyverno/kyverno/releases/download/$(KYVERNO_VERSION)/install.yaml
 CONTROLLER_GEN_VERSION ?= v0.21.0
+GOLANGCI_LINT_VERSION ?= v2.13.2
 GITHUB_OWNER         ?= Mampiz
 
 KUBECTL := kubectl --context=$(KUBE_CONTEXT)
@@ -172,12 +173,13 @@ tidy: ## go mod tidy
 	go mod tidy
 
 .PHONY: lint
-lint: ## golangci-lint (uses the binary on PATH, or go run as a fallback)
-	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run ./...; \
-	else \
-		echo "golangci-lint not on PATH, skipping is not an option: install it or run 'make vet'"; exit 1; \
-	fi
+lint: golangci-lint ## Lint the Go code
+	./bin/golangci-lint run ./...
+
+.PHONY: golangci-lint
+golangci-lint: ## Install golangci-lint into bin/
+	@test -x bin/golangci-lint || \
+		GOBIN=$(PWD)/bin go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 .PHONY: lint-shell
 lint-shell: tools ## shellcheck every verifier and helper script

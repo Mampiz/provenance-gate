@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -58,10 +59,11 @@ func (r *BuildIdentityReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	setCondition(&meta.Conditions, condition)
 
 	if err := r.Status().Update(ctx, &identity); err != nil {
-		// A conflict means somebody else wrote first, and the next reconcile
-		// will compute the same answer against the newer object.
+		// A conflict means somebody else wrote first. The next reconcile
+		// computes the same answer against the newer object, so this is a
+		// retry rather than a failure and does not belong in the error log.
 		if apierrors.IsConflict(err) {
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{RequeueAfter: time.Second}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("updating the status of %s: %w", req.NamespacedName, err)
 	}

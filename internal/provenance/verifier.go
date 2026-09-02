@@ -86,7 +86,7 @@ func (v *Verifier) Verify(ctx context.Context, imageRef string, want Identity) (
 		return Result{}, fmt.Errorf("building the expected signer identity: %w", err)
 	}
 
-	verifier, err := sigverify.NewSignedEntityVerifier(v.trust,
+	verifier, err := sigverify.NewVerifier(v.trust,
 		// The attestation must be in the transparency log, and its timestamp
 		// must be observed by at least one source. Both are what make a
 		// signature that was valid at build time still checkable now.
