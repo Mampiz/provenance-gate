@@ -1,0 +1,13 @@
+# kind cluster for provenance-gate. Everything in this repository targets THIS
+# cluster and no other: the Makefile pins --context on every kubectl call and
+# the verifiers refuse to run against a non-local API server.
+#
+# The node image is pinned by digest, not by tag, so a cluster created today and
+# one created in six months are the same cluster. A project about verifying what
+# an artifact is made of cannot be sloppy about its own artifacts.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: provenance-local
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.36.1@sha256:21c46cf61fd45873f89e6a1bfcba4b7904dffa84c2bec88aeeca9a0409af4725

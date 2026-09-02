@@ -1,0 +1,19 @@
+# --- Secrets and credentials: never in git ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+kubeconfig
+kubeconfig-*
+
+# --- Go ---
+bin/
+dist/
+*.test
+coverage.out
+
+# --- Local state ---
+*.local.yaml
+.DS_Store

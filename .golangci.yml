@@ -1,0 +1,38 @@
+# Deliberately the same standard as webapp-operator and idp-backstage, so the
+# three repositories are linted to one rule set.
+version: "2"
+run:
+  allow-parallel-runners: true
+linters:
+  default: none
+  enable:
+    - copyloopvar
+    - errcheck
+    - goconst
+    - gocyclo
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - prealloc
+    - revive
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+  settings:
+    revive:
+      rules:
+        - name: comment-spacings
+        - name: exported
+    gocyclo:
+      min-complexity: 15
+  exclusions:
+    generated: lax
+    rules:
+      # Table-driven tests are repetitive by nature.
+      - path: _test\.go
+        linters: [goconst, dupl, unparam]
+formatters:
+  enable:
+    - gofmt
