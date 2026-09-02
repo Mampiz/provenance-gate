@@ -1,0 +1,52 @@
+# A privileged container holds the host's capabilities. There is no meaningful
+# boundary left between it and the node, so nothing else in this corpus means
+# much if this one is not enforced.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-privileged-containers
+  annotations:
+    policies.kyverno.io/title: Disallow privileged containers
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Privileged containers and privilege escalation are refused. A privileged
+      container is equivalent to root on the node.
+spec:
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - kube-public
+            - kube-node-lease
+            - kyverno
+            - cert-manager
+            - local-path-storage
+  variables:
+    - name: containers
+      expression: >-
+        object.spec.containers +
+        (has(object.spec.initContainers) ? object.spec.initContainers : []) +
+        (has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers : [])
+  validations:
+    # Absent is allowed, true is not. Both fields default to false, so a pod
+    # that says nothing is not asking for either.
+    - expression: >-
+        variables.containers.all(c,
+          !has(c.securityContext) ||
+          ((!has(c.securityContext.privileged) || c.securityContext.privileged != true) &&
+           (!has(c.securityContext.allowPrivilegeEscalation) || c.securityContext.allowPrivilegeEscalation != true)))
+      message: >-
+        privileged and allowPrivilegeEscalation must not be true.

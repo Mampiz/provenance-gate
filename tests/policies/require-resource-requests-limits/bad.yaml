@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+    - name: app
+      image: nginxinc/nginx-unprivileged:1.27-alpine
+      resources:
+        requests: {cpu: 10m, memory: 32Mi}
+        # cpu is set, memory is not: a partial limits block has to fail too.
+        limits: {cpu: 100m}

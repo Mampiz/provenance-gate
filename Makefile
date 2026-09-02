@@ -12,6 +12,8 @@ KUBE_CONTEXT         ?= kind-$(CLUSTER_NAME)
 KIND_CONFIG          ?= infra/kind/provenance-local.yaml
 CERT_MANAGER_VERSION ?= v1.21.1
 CERT_MANAGER_URL     ?= https://github.com/cert-manager/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.yaml
+KYVERNO_VERSION      ?= v1.19.0
+KYVERNO_URL          ?= https://github.com/kyverno/kyverno/releases/download/$(KYVERNO_VERSION)/install.yaml
 
 KUBECTL := kubectl --context=$(KUBE_CONTEXT)
 
@@ -57,11 +59,33 @@ cert-manager: ## Install cert-manager (the admission webhook's serving cert come
 	@KUBE_CONTEXT=$(KUBE_CONTEXT) ./infra/scripts/wait-cert-manager.sh
 
 .PHONY: bootstrap
-bootstrap: preflight cluster-up cert-manager ## Full F0 bring-up from zero
+bootstrap: preflight cluster-up cert-manager kyverno policies-audit ## Bring the whole local platform up from zero
 
 .PHONY: verify-f0
 verify-f0: ## F0 verifier: local cluster, cert-manager issuing certificates, Go module clean
 	@KUBE_CONTEXT=$(KUBE_CONTEXT) ./infra/scripts/verify-f0.sh
+
+##@ F2 - Kyverno baseline
+
+.PHONY: kyverno
+kyverno: ## Install Kyverno $(KYVERNO_VERSION)
+	@# Server-side apply is required, not a preference: the Kyverno CRDs are
+	@# larger than the 262144-byte limit on the last-applied-configuration
+	@# annotation that a client-side apply writes, and the apply is rejected.
+	$(KUBECTL) apply --server-side --force-conflicts -f $(KYVERNO_URL)
+	$(KUBECTL) -n kyverno wait deployment --all --for=condition=Available --timeout=300s
+
+.PHONY: policies-audit
+policies-audit: ## Apply the baseline corpus in Audit
+	$(KUBECTL) apply -k policies/baseline
+
+.PHONY: policies-enforce
+policies-enforce: ## Flip the baseline corpus to Deny
+	$(KUBECTL) apply -k policies/enforce
+
+.PHONY: verify-f2
+verify-f2: tools ## F2 verifier: Audit records, Deny blocks, and the Chainsaw suite passes
+	@KUBE_CONTEXT=$(KUBE_CONTEXT) ./infra/scripts/verify-f2.sh
 
 ##@ F1 - Signed builds
 

@@ -1,0 +1,21 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: require-image-tag
+spec:
+  steps:
+    - name: a compliant pod is admitted
+      try:
+        - apply:
+            file: good.yaml
+    - name: an untagged image is rejected by this policy
+      try:
+        - apply:
+            file: bad.yaml
+            expect:
+              # Asserting the policy NAME, not just that something failed. Six
+              # policies are active, and a bad case that trips a different one
+              # would otherwise pass this test for the wrong reason.
+              - check:
+                  ($error != null): true
+                  (contains($error, 'require-image-tag')): true

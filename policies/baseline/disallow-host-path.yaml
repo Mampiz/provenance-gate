@@ -1,0 +1,42 @@
+# A hostPath volume reaches out of the container into the node's filesystem.
+# Mounted writable it is a straight path to the node; mounted read-only it still
+# reads whatever the kubelet can read.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-host-path
+  annotations:
+    policies.kyverno.io/title: Disallow hostPath volumes
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      hostPath volumes mount the node's filesystem into the pod and are refused.
+spec:
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - kube-public
+            - kube-node-lease
+            - kyverno
+            - cert-manager
+            - local-path-storage
+  validations:
+    - expression: >-
+        !has(object.spec.volumes) ||
+        object.spec.volumes.all(v, !has(v.hostPath))
+      message: >-
+        hostPath volumes are not allowed. Use an emptyDir or a
+        PersistentVolumeClaim.

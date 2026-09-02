@@ -12,3 +12,4 @@ see what the alternatives were and why they lost, not just what the code does.
 | [0003](0003-cert-manager-for-webhook-certificates.md) | cert-manager issues the webhook serving certificate | Accepted |
 | [0004](0004-native-attestations-not-slsa-github-generator.md) | GitHub's native attestations, not slsa-github-generator | Accepted |
 | [0005](0005-both-a-cosign-signature-and-an-attestation.md) | Publish both a cosign signature and the provenance attestation | Accepted |
+| [0006](0006-validatingpolicy-not-clusterpolicy.md) | The baseline corpus uses ValidatingPolicy, not ClusterPolicy | Accepted |

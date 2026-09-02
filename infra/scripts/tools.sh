@@ -29,6 +29,9 @@ JQ_SHA256="b1c22172dd303f3be49e935aa56aa48a8b7a46e0bc838b4997d3bb451495870f"
 SHELLCHECK_VERSION="v0.11.0"
 SHELLCHECK_SHA256="8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
 
+CHAINSAW_VERSION="v0.2.15"
+CHAINSAW_SHA256="295d226c89f126c0a97775d364be149f47a810c8a3f9829ee410583d0c1abe3c"
+
 note() { printf '\033[1m%s\033[0m\n' "$1"; }
 
 verify() {
@@ -99,13 +102,31 @@ install_shellcheck() {
   ln -sf "shellcheck-${SHELLCHECK_VERSION}" "${BIN}/shellcheck"
 }
 
+install_chainsaw() {
+  local target="${BIN}/chainsaw-${CHAINSAW_VERSION}"
+  if [ -x "${target}" ]; then note "chainsaw ${CHAINSAW_VERSION} already installed"; return; fi
+  note "installing chainsaw ${CHAINSAW_VERSION}"
+  local archive
+  archive="$(mktemp)"
+  curl -sSL -o "${archive}" \
+    "https://github.com/kyverno/chainsaw/releases/download/${CHAINSAW_VERSION}/chainsaw_linux_amd64.tar.gz"
+  verify "${archive}" "${CHAINSAW_SHA256}"
+  tar -xzf "${archive}" -C "${BIN}" chainsaw
+  mv "${BIN}/chainsaw" "${target}"
+  rm -f "${archive}"
+  chmod +x "${target}"
+  ln -sf "chainsaw-${CHAINSAW_VERSION}" "${BIN}/chainsaw"
+}
+
 install_cosign
 install_crane
 install_jq
 install_shellcheck
+install_chainsaw
 
 note "tools ready in ${BIN}"
 "${BIN}/cosign" version --json 2>/dev/null | "${BIN}/jq" -r '"cosign " + .gitVersion' || true
 "${BIN}/crane" version | sed 's/^/crane /'
 "${BIN}/jq" --version
-"${BIN}/shellcheck" --version | sed -n '2p' | sed 's/^/shellcheck /' 
+"${BIN}/shellcheck" --version | sed -n '2p' | sed 's/^/shellcheck /'
+"${BIN}/chainsaw" version | sed -n '1p' | sed 's/^/chainsaw /' 

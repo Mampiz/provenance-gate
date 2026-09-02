@@ -1,0 +1,54 @@
+# Without a request the scheduler is guessing, and without a limit one workload
+# can starve every other one on the node. A reliability rule living with the
+# security ones because it fails the same way: quietly, until it does not.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-resource-requests-limits
+  annotations:
+    policies.kyverno.io/title: Require resource requests and limits
+    policies.kyverno.io/category: Reliability
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Every container must declare cpu and memory requests and limits.
+spec:
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - kube-public
+            - kube-node-lease
+            - kyverno
+            - cert-manager
+            - local-path-storage
+  variables:
+    # Ephemeral containers are excluded on purpose: the API server rejects
+    # resources on them outright, so requiring any would make debugging a
+    # running pod impossible.
+    - name: containers
+      expression: >-
+        object.spec.containers +
+        (has(object.spec.initContainers) ? object.spec.initContainers : [])
+  validations:
+    - expression: >-
+        variables.containers.all(c,
+          has(c.resources) &&
+          has(c.resources.requests) &&
+          has(c.resources.requests.cpu) && has(c.resources.requests.memory) &&
+          has(c.resources.limits) &&
+          has(c.resources.limits.cpu) && has(c.resources.limits.memory))
+      message: >-
+        Every container must set resources.requests and resources.limits for
+        both cpu and memory.

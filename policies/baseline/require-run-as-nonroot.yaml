@@ -1,0 +1,60 @@
+# Running as root inside a container is not a sandbox escape by itself, but it
+# is the precondition for most of them. Requiring the opt-out to be explicit
+# means somebody has to write down that they need it.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-run-as-nonroot
+  annotations:
+    policies.kyverno.io/title: Require runAsNonRoot
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Containers must declare runAsNonRoot, at the pod level or on every
+      container.
+spec:
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - kube-public
+            - kube-node-lease
+            - kyverno
+            - cert-manager
+            - local-path-storage
+  variables:
+    - name: containers
+      expression: >-
+        object.spec.containers +
+        (has(object.spec.initContainers) ? object.spec.initContainers : []) +
+        (has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers : [])
+    - name: podLevel
+      expression: >-
+        has(object.spec.securityContext) &&
+        has(object.spec.securityContext.runAsNonRoot) &&
+        object.spec.securityContext.runAsNonRoot == true
+  validations:
+    # Either spelling is acceptable: once on the pod, or on every container.
+    # Insisting on the pod-level form would reject a perfectly hardened pod for
+    # writing it the other way.
+    - expression: >-
+        variables.podLevel ||
+        variables.containers.all(c,
+          has(c.securityContext) &&
+          has(c.securityContext.runAsNonRoot) &&
+          c.securityContext.runAsNonRoot == true)
+      message: >-
+        runAsNonRoot must be true, either on the pod securityContext or on every
+        container.

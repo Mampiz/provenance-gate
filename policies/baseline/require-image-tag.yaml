@@ -1,0 +1,58 @@
+# An image reference with no tag and no digest resolves to :latest, so a policy
+# that only forbids the literal string "latest" is bypassed by leaving the tag
+# off entirely. This rule closes that half; disallow-latest-tag closes the other.
+#
+# The expression takes the last path segment before looking for a colon, so a
+# registry carrying a port and no tag (myregistry:5000/app) is correctly
+# rejected rather than passing because the port introduced a colon.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-image-tag
+  annotations:
+    policies.kyverno.io/title: Require an explicit image tag
+    policies.kyverno.io/category: Supply chain
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      An image reference without a tag or digest resolves to latest, so the same
+      manifest can run different code on different days.
+spec:
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    namespaceSelector:
+      matchExpressions:
+        # Cluster components legitimately break these rules and cannot be fixed
+        # from here. A policy that takes down the control plane is not a
+        # security control, it is an outage.
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - kube-public
+            - kube-node-lease
+            - kyverno
+            - cert-manager
+            - local-path-storage
+  variables:
+    - name: images
+      expression: >-
+        (object.spec.containers +
+         (has(object.spec.initContainers) ? object.spec.initContainers : []) +
+         (has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers : [])
+        ).map(c, c.image)
+  validations:
+    - expression: >-
+        variables.images.all(i,
+          i.contains("@sha256:") ||
+          i.split("/")[size(i.split("/")) - 1].contains(":"))
+      message: >-
+        Every image must carry an explicit tag or digest. An untagged reference
+        resolves to :latest and is not reproducible.

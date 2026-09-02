@@ -1,0 +1,18 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: disallow-latest-tag
+spec:
+  steps:
+    - name: a compliant pod is admitted
+      try:
+        - apply:
+            file: good.yaml
+    - name: a pod using the latest tag is rejected by this policy
+      try:
+        - apply:
+            file: bad.yaml
+            expect:
+              - check:
+                  ($error != null): true
+                  (contains($error, 'disallow-latest-tag')): true

@@ -1,0 +1,20 @@
+# The baseline corpus, in Audit.
+#
+# Audit is the source of truth in this directory on purpose. A rule that has
+# never run against real traffic should not be able to block anything, and the
+# only honest way to learn what a rule breaks is to let it report first.
+# policies/enforce/ is the same corpus with the action flipped.
+#
+# These are ValidatingPolicy, not ClusterPolicy. Kyverno 1.19 deprecates the
+# ClusterPolicy API and warns on every apply, and the CEL form is also more
+# precise here: require-image-tag can strip the registry before looking for a
+# tag, which the pattern syntax cannot express.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - require-image-tag.yaml
+  - disallow-latest-tag.yaml
+  - require-run-as-nonroot.yaml
+  - require-resource-requests-limits.yaml
+  - disallow-privileged-containers.yaml
+  - disallow-host-path.yaml

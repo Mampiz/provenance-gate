@@ -1,0 +1,48 @@
+# :latest is a pointer, not a version. Two pods created from the same manifest
+# an hour apart can run different code, which makes an incident impossible to
+# reconstruct and a signature impossible to tie to anything.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow the latest tag
+    policies.kyverno.io/category: Supply chain
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      The latest tag is mutable. What ran yesterday and what runs today can
+      differ with no change to any manifest.
+spec:
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - kube-public
+            - kube-node-lease
+            - kyverno
+            - cert-manager
+            - local-path-storage
+  variables:
+    - name: images
+      expression: >-
+        (object.spec.containers +
+         (has(object.spec.initContainers) ? object.spec.initContainers : []) +
+         (has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers : [])
+        ).map(c, c.image)
+  validations:
+    - expression: variables.images.all(i, !i.endsWith(":latest"))
+      message: >-
+        The mutable tag :latest is not allowed. Pin an explicit version or a
+        digest.

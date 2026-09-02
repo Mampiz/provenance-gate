@@ -1,0 +1,18 @@
+# The same corpus, with the action flipped from Audit to Deny.
+#
+# The patch targets every ValidatingPolicy by kind rather than naming them, so a
+# policy added to the baseline is enforced automatically. Adding a policy and
+# forgetting to enforce it is the failure mode this shape exists to prevent.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../baseline
+patches:
+  - target:
+      group: policies.kyverno.io
+      version: v1
+      kind: ValidatingPolicy
+    patch: |
+      - op: replace
+        path: /spec/validationActions
+        value: [Deny]
