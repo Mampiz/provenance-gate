@@ -9,6 +9,7 @@ WORKDIR /src
 COPY go.mod go.su[m] ./
 RUN go mod download
 
+COPY api/ api/
 COPY cmd/ cmd/
 COPY internal/ internal/
 

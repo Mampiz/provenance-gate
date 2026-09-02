@@ -14,6 +14,8 @@ CERT_MANAGER_VERSION ?= v1.21.1
 CERT_MANAGER_URL     ?= https://github.com/cert-manager/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.yaml
 KYVERNO_VERSION      ?= v1.19.0
 KYVERNO_URL          ?= https://github.com/kyverno/kyverno/releases/download/$(KYVERNO_VERSION)/install.yaml
+CONTROLLER_GEN_VERSION ?= v0.21.0
+GITHUB_OWNER         ?= Mampiz
 
 KUBECTL := kubectl --context=$(KUBE_CONTEXT)
 
@@ -64,6 +66,61 @@ bootstrap: preflight cluster-up cert-manager kyverno policies-audit ## Bring the
 .PHONY: verify-f0
 verify-f0: ## F0 verifier: local cluster, cert-manager issuing certificates, Go module clean
 	@KUBE_CONTEXT=$(KUBE_CONTEXT) ./infra/scripts/verify-f0.sh
+
+##@ F3 - The webhook
+
+IMAGE ?= provenance-gate:dev
+
+.PHONY: manifests
+manifests: controller-gen ## Regenerate the CRD and deepcopy code
+	./bin/controller-gen object:headerFile=hack/boilerplate.go.txt paths=./api/...
+	./bin/controller-gen crd paths=./api/... output:crd:artifacts:config=config/crd
+
+.PHONY: controller-gen
+controller-gen: ## Install controller-gen into bin/
+	@test -x bin/controller-gen-$(CONTROLLER_GEN_VERSION) || \
+		GOBIN=$(PWD)/bin go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
+	@test -x bin/controller-gen-$(CONTROLLER_GEN_VERSION) || \
+		mv bin/controller-gen bin/controller-gen-$(CONTROLLER_GEN_VERSION)
+	@ln -sf controller-gen-$(CONTROLLER_GEN_VERSION) bin/controller-gen
+
+.PHONY: docker-build
+docker-build: ## Build the webhook image
+	docker build -t $(IMAGE) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) .
+
+.PHONY: kind-load
+kind-load: docker-build ## Load the webhook image into the kind cluster
+	kind load docker-image $(IMAGE) --name $(CLUSTER_NAME)
+
+.PHONY: deploy
+deploy: kind-load ## Deploy the CRD, RBAC, manager and webhook configuration
+	$(KUBECTL) apply -k config
+	@# The manifest in git carries no meaningful tag, so it is set here rather
+	@# than committing something that pretends to be current.
+	$(KUBECTL) -n provenance-gate-system set image deployment/provenance-gate manager=$(IMAGE)
+	$(KUBECTL) -n provenance-gate-system patch deployment provenance-gate \
+		--type=json -p '[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"Never"}]'
+	$(KUBECTL) -n provenance-gate-system rollout status deployment/provenance-gate --timeout=300s
+
+.PHONY: registry-credentials
+registry-credentials: ## Give the webhook read access to a private ghcr package (uses $$GITHUB_TOKEN)
+	@test -n "$$GITHUB_TOKEN" || { echo "GITHUB_TOKEN is not set"; exit 1; }
+	@$(KUBECTL) -n provenance-gate-system create secret generic provenance-gate-registry \
+		--from-literal=config.json='{"auths":{"ghcr.io":{"auth":"'"$$(printf '%s' "$(GITHUB_OWNER):$$GITHUB_TOKEN" | base64 -w0)"'"}}}' \
+		--dry-run=client -o yaml | $(KUBECTL) apply -f -
+	@$(KUBECTL) -n provenance-gate-system rollout restart deployment/provenance-gate
+	@$(KUBECTL) -n provenance-gate-system rollout status deployment/provenance-gate --timeout=300s
+
+.PHONY: undeploy
+undeploy: ## Remove the webhook and its configuration
+	-$(KUBECTL) delete -k config --ignore-not-found
+
+.PHONY: verify-f3
+verify-f3: tools ## F3 verifier: the three cases, against real published images
+	@KUBE_CONTEXT=$(KUBE_CONTEXT) ./infra/scripts/verify-f3.sh
 
 ##@ F2 - Kyverno baseline
 

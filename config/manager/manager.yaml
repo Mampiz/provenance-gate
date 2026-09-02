@@ -31,6 +31,12 @@ spec:
             - --admission-timeout=4s
             - --cache-ttl=10m
             - --cache-failure-ttl=30s
+          env:
+            # go-containerregistry's default keychain reads a docker config from
+            # here. Mounting one is how a private registry works; the secret is
+            # optional, so a cluster pulling only public images needs nothing.
+            - name: DOCKER_CONFIG
+              value: /etc/registry
           ports:
             - name: webhook
               containerPort: 9443
@@ -68,6 +74,9 @@ spec:
               readOnly: true
             - name: sigstore-cache
               mountPath: /tmp/sigstore
+            - name: registry-credentials
+              mountPath: /etc/registry
+              readOnly: true
       volumes:
         - name: serving-cert
           secret:
@@ -76,6 +85,10 @@ spec:
         # somewhere to keep its metadata.
         - name: sigstore-cache
           emptyDir: {}
+        - name: registry-credentials
+          secret:
+            secretName: provenance-gate-registry
+            optional: true
       # Spread the replicas so a single node going away does not take the
       # webhook with it.
       topologySpreadConstraints:
