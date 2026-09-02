@@ -1,0 +1,35 @@
+name: kind cluster
+description: >-
+  Brings up the local kind cluster the verifiers run against, exactly the way
+  make bootstrap does on a laptop. Extracted so the two e2e workflows cannot
+  drift apart, because a difference between them would show up as a phase
+  passing in one and failing in the other for no visible reason.
+
+runs:
+  using: composite
+  steps:
+    - name: Raise the inotify limits kind needs
+      # The runner ships with fs.inotify.max_user_instances at 128, below kind's
+      # documented minimum. make preflight refuses to create a cluster under it,
+      # which is the same thing it does on a laptop.
+      shell: bash
+      run: |
+        echo 'fs.inotify.max_user_instances=8192' | sudo tee /etc/sysctl.d/99-kind.conf
+        echo 'fs.inotify.max_user_watches=524288' | sudo tee -a /etc/sysctl.d/99-kind.conf
+        sudo sysctl --system >/dev/null
+
+    - name: Install kind
+      shell: bash
+      env:
+        KIND_VERSION: v0.32.0
+        KIND_SHA256: 50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54
+      run: |
+        set -euo pipefail
+        curl -sSL -o /usr/local/bin/kind \
+          "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+        echo "${KIND_SHA256}  /usr/local/bin/kind" | sha256sum -c -
+        sudo chmod +x /usr/local/bin/kind
+
+    - name: Bring up the cluster
+      shell: bash
+      run: make bootstrap

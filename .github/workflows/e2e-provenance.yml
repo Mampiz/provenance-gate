@@ -1,0 +1,58 @@
+# The verifiers that need a published image.
+#
+# F1 checks the attestations on the image in ghcr.io, and F3 admits and refuses
+# real pods against it. Both need the release workflow to have finished for this
+# commit, which is why this runs on workflow_run rather than on push: started on
+# push it would race the build it depends on and fail for a reason that has
+# nothing to do with the code.
+
+name: e2e-provenance
+
+on:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-provenance-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  verifiers:
+    # A release that failed published nothing, so there is nothing to verify.
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The commit the release actually built, not whatever main points at
+          # now. The verifiers resolve the image tag from HEAD, so checking out
+          # anything else would look for an image that was never published.
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - uses: ./.github/actions/kind-cluster
+
+      - name: F1
+        run: make verify-f1
+
+      - name: Deploy the webhook
+        run: make deploy
+
+      - name: F3
+        run: make verify-f3
+
+      - name: Cluster state on failure
+        if: failure()
+        run: |
+          kubectl --context=kind-provenance-local -n provenance-gate-system get pods -o wide || true
+          kubectl --context=kind-provenance-local -n provenance-gate-system logs \
+            -l app.kubernetes.io/name=provenance-gate --tail=200 || true
+          kubectl --context=kind-provenance-local get validatingwebhookconfiguration provenance-gate -o yaml || true

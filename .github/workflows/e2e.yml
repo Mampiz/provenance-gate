@@ -5,9 +5,10 @@
 # if it passes here it passes on a laptop, and if it fails here the phase is not
 # done.
 #
-# verify-f1 is deliberately absent. It checks the image published to ghcr.io for
+# F1 and F3 are deliberately absent. Both check images published to ghcr.io for
 # the current commit, which the release workflow produces in parallel with this
-# one, so running it here would be a race. It belongs to the release path.
+# one, so running them here would be a race. They live in e2e-provenance.yml,
+# which runs after release has finished.
 
 name: e2e
 
@@ -34,28 +35,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Raise the inotify limits kind needs
-        # The runner ships with fs.inotify.max_user_instances at 128, below
-        # kind's documented minimum. make preflight refuses to create a cluster
-        # under it, which is the same thing it does on a laptop.
-        run: |
-          echo 'fs.inotify.max_user_instances=8192' | sudo tee /etc/sysctl.d/99-kind.conf
-          echo 'fs.inotify.max_user_watches=524288' | sudo tee -a /etc/sysctl.d/99-kind.conf
-          sudo sysctl --system >/dev/null
-
-      - name: Install kind
-        env:
-          KIND_VERSION: v0.32.0
-          KIND_SHA256: 50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54
-        run: |
-          set -euo pipefail
-          curl -sSL -o /usr/local/bin/kind \
-            "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
-          echo "${KIND_SHA256}  /usr/local/bin/kind" | sha256sum -c -
-          sudo chmod +x /usr/local/bin/kind
-
-      - name: Bring up the cluster
-        run: make bootstrap
+      - uses: ./.github/actions/kind-cluster
 
       - name: F0
         run: make verify-f0
