@@ -63,6 +63,16 @@ bootstrap: preflight cluster-up cert-manager ## Full F0 bring-up from zero
 verify-f0: ## F0 verifier: local cluster, cert-manager issuing certificates, Go module clean
 	@KUBE_CONTEXT=$(KUBE_CONTEXT) ./infra/scripts/verify-f0.sh
 
+##@ F1 - Signed builds
+
+.PHONY: tools
+tools: ## Install cosign, crane and jq into bin/ at pinned versions and checksums
+	@./infra/scripts/tools.sh
+
+.PHONY: verify-f1
+verify-f1: tools ## F1 verifier: gh attestation verify and cosign verify against the published image
+	@./infra/scripts/verify-f1.sh
+
 ##@ Go
 
 .PHONY: build
