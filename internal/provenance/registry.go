@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -42,11 +44,36 @@ var ErrNoAttestation = errors.New("no SLSA provenance attestation is attached to
 // Registry reads images and their attestations from an OCI registry.
 type Registry struct {
 	keychain authn.Keychain
+	puller   *remote.Puller
 }
 
 // NewRegistry returns a Registry using ambient credentials.
-func NewRegistry() *Registry {
-	return &Registry{keychain: authn.DefaultKeychain}
+//
+// The Puller is created once and shared. Without it every call negotiates a
+// fresh bearer token with the registry and opens a fresh TLS connection, and
+// one verification makes three calls: resolve the digest, list the referrers,
+// pull the blob. On the admission path that is three token exchanges and three
+// handshakes for one answer, which is most of the cost.
+func NewRegistry() (*Registry, error) {
+	keychain := authn.DefaultKeychain
+	puller, err := remote.NewPuller(
+		remote.WithAuthFromKeychain(keychain),
+		remote.WithTransport(transport()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("building the registry client: %w", err)
+	}
+	return &Registry{keychain: keychain, puller: puller}, nil
+}
+
+// transport keeps connections alive between verifications. The default
+// http.Transport is fine, but its idle timeout is short enough that a webhook
+// verifying one image every few minutes reconnects every time.
+func transport() http.RoundTripper {
+	base := http.DefaultTransport.(*http.Transport).Clone()
+	base.MaxIdleConnsPerHost = 8
+	base.IdleConnTimeout = 5 * time.Minute
+	return base
 }
 
 // Resolve turns any image reference into a digest reference.
@@ -66,10 +93,7 @@ func (r *Registry) Resolve(ctx context.Context, imageRef string) (name.Digest, e
 		return digest, nil
 	}
 
-	descriptor, err := remote.Head(ref,
-		remote.WithContext(ctx),
-		remote.WithAuthFromKeychain(r.keychain),
-	)
+	descriptor, err := r.puller.Head(ctx, ref)
 	if err != nil {
 		return name.Digest{}, fmt.Errorf("resolving %q to a digest: %w", imageRef, err)
 	}
@@ -90,7 +114,7 @@ func (r *Registry) Resolve(ctx context.Context, imageRef string) (name.Digest, e
 func (r *Registry) FetchAttestations(ctx context.Context, digest name.Digest, predicateType string) ([][]byte, error) {
 	index, err := remote.Referrers(digest,
 		remote.WithContext(ctx),
-		remote.WithAuthFromKeychain(r.keychain),
+		remote.Reuse(r.puller),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listing referrers of %s: %w", digest, err)
@@ -131,10 +155,11 @@ func (r *Registry) FetchAttestations(ctx context.Context, digest name.Digest, pr
 func (r *Registry) fetchBundleBlob(ctx context.Context, repo name.Repository, descriptor v1.Descriptor) ([]byte, error) {
 	ref := repo.Digest(descriptor.Digest.String())
 
-	image, err := remote.Image(ref,
-		remote.WithContext(ctx),
-		remote.WithAuthFromKeychain(r.keychain),
-	)
+	descriptorImage, err := r.puller.Get(ctx, ref)
+	if err != nil {
+		return nil, fmt.Errorf("fetching attestation manifest %s: %w", descriptor.Digest, err)
+	}
+	image, err := descriptorImage.Image()
 	if err != nil {
 		return nil, fmt.Errorf("fetching attestation manifest %s: %w", descriptor.Digest, err)
 	}

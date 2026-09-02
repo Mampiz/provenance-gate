@@ -70,6 +70,17 @@ bootstrap: preflight cluster-up cert-manager kyverno policies-audit ## Bring the
 verify-f0: ## F0 verifier: local cluster, cert-manager issuing certificates, Go module clean
 	@KUBE_CONTEXT=$(KUBE_CONTEXT) ./infra/scripts/verify-f0.sh
 
+##@ F5 - Numbers
+
+.PHONY: benchmark
+benchmark: tools ## Measure admission latency with and without the cache, and regenerate docs/benchmarks.md
+	@KUBE_CONTEXT=$(KUBE_CONTEXT) ./infra/scripts/benchmark.sh
+
+.PHONY: coverage
+coverage: ## Report test coverage per package
+	go test -coverprofile=coverage.out ./... >/dev/null
+	go tool cover -func=coverage.out | tail -20
+
 ##@ F4 - Integration with the operator and the IDP
 
 .PHONY: webapp-operator

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/sigstore/sigstore-go/pkg/bundle"
 	"github.com/sigstore/sigstore-go/pkg/root"
@@ -71,13 +72,19 @@ func (v *Verifier) Verify(ctx context.Context, imageRef string, want Identity) (
 		return Result{}, err
 	}
 
+	started := time.Now()
 	digest, err := v.registry.Resolve(ctx, imageRef)
+	stageDuration.WithLabelValues("resolve").Observe(time.Since(started).Seconds())
 	if err != nil {
+		verificationResults.WithLabelValues("resolve_failed").Inc()
 		return Result{}, err
 	}
 
+	started = time.Now()
 	bundles, err := v.registry.FetchAttestations(ctx, digest, SLSAProvenancePredicateType)
+	stageDuration.WithLabelValues("fetch").Observe(time.Since(started).Seconds())
 	if err != nil {
+		verificationResults.WithLabelValues("no_attestation").Inc()
 		return Result{}, err
 	}
 
@@ -109,6 +116,9 @@ func (v *Verifier) Verify(ctx context.Context, imageRef string, want Identity) (
 		sigverify.WithCertificateIdentity(certID),
 	)
 
+	started = time.Now()
+	defer func() { stageDuration.WithLabelValues("verify").Observe(time.Since(started).Seconds()) }()
+
 	var failures []string
 	for _, raw := range bundles {
 		observed, err := v.verifyOne(raw, verifier, policy, want)
@@ -116,9 +126,11 @@ func (v *Verifier) Verify(ctx context.Context, imageRef string, want Identity) (
 			failures = append(failures, err.Error())
 			continue
 		}
+		verificationResults.WithLabelValues("admitted").Inc()
 		return Result{Digest: digest.DigestStr(), Observed: observed}, nil
 	}
 
+	verificationResults.WithLabelValues("refused").Inc()
 	return Result{}, fmt.Errorf(
 		"no provenance attestation on %s satisfies this workload's build identity: %s",
 		digest.DigestStr(), strings.Join(failures, "; "))

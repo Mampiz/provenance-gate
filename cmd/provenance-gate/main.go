@@ -125,7 +125,11 @@ func run() error {
 	// request waited would put a third party's availability in front of every
 	// pod being scheduled.
 	log.Info("fetching the Sigstore trusted root")
-	verifier, err := provenance.NewVerifier(provenance.NewRegistry(), opts.tufCacheDir)
+	registry, err := provenance.NewRegistry()
+	if err != nil {
+		return fmt.Errorf("building the registry client: %w", err)
+	}
+	verifier, err := provenance.NewVerifier(registry, opts.tufCacheDir)
 	if err != nil {
 		return fmt.Errorf("building the verifier: %w", err)
 	}
