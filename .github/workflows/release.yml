@@ -1,0 +1,30 @@
+# Publishes this repository's own image through the trusted builder.
+#
+# There is nothing here but a call. Everything that decides what the artifact is
+# and how it gets signed lives in build-sign.yml, which is the point: a caller
+# that could influence the build would not be a Build L3 caller.
+
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Permissions cannot be widened by a called workflow, only narrowed, so the
+    # caller has to grant everything the builder needs.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/build-sign.yml
+    with:
+      image: ghcr.io/${{ github.repository }}
+      extra-tag: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
