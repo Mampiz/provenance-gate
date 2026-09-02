@@ -127,6 +127,9 @@ kyverno: ## Install Kyverno $(KYVERNO_VERSION)
 	@# annotation that a client-side apply writes, and the apply is rejected.
 	$(KUBECTL) apply --server-side --force-conflicts -f $(KYVERNO_URL)
 	$(KUBECTL) -n kyverno wait deployment --all --for=condition=Available --timeout=300s
+	@# Available is not the same as serving, and applying a policy in the gap
+	@# fails with a connection refused that reads like a broken installation.
+	@KUBE_CONTEXT=$(KUBE_CONTEXT) ./infra/scripts/wait-kyverno.sh
 
 .PHONY: policies-audit
 policies-audit: ## Apply the baseline corpus in Audit
