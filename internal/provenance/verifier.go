@@ -36,8 +36,16 @@ type Verifier struct {
 // verifier that reached out to TUF while an API request waited would put a
 // third party's availability in front of every pod being scheduled. LiveTrustedRoot
 // refreshes itself in the background, so expiry is handled without that.
-func NewVerifier(registry *Registry) (*Verifier, error) {
+func NewVerifier(registry *Registry, tufCachePath string) (*Verifier, error) {
 	opts := tuf.DefaultOptions()
+	if tufCachePath != "" {
+		// The default is $HOME/.sigstore, which does not exist on a container
+		// whose root filesystem is read-only. Pointing it at a mounted volume
+		// keeps the cache, and with it the ability to start when the TUF CDN is
+		// having a bad day, rather than disabling it.
+		opts.CachePath = tufCachePath
+	}
+
 	trusted, err := root.NewLiveTrustedRoot(opts)
 	if err != nil {
 		return nil, fmt.Errorf("fetching the Sigstore trusted root: %w", err)

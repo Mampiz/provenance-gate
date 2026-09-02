@@ -1,0 +1,24 @@
+# Local development: the image is built on this machine and loaded straight into
+# kind, so it is never pulled and there is no registry to pull it from.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../default
+images:
+  - name: ghcr.io/mampiz/provenance-gate
+    newName: provenance-gate
+    newTag: dev
+patches:
+  - target:
+      kind: Deployment
+      name: provenance-gate
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+      # One replica locally. The base runs two because an admission webhook is
+      # on the critical path of every matching request, but a single-node kind
+      # cluster gains nothing from the second.
+      - op: replace
+        path: /spec/replicas
+        value: 1

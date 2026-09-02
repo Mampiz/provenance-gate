@@ -97,12 +97,7 @@ kind-load: docker-build ## Load the webhook image into the kind cluster
 
 .PHONY: deploy
 deploy: kind-load ## Deploy the CRD, RBAC, manager and webhook configuration
-	$(KUBECTL) apply -k config
-	@# The manifest in git carries no meaningful tag, so it is set here rather
-	@# than committing something that pretends to be current.
-	$(KUBECTL) -n provenance-gate-system set image deployment/provenance-gate manager=$(IMAGE)
-	$(KUBECTL) -n provenance-gate-system patch deployment provenance-gate \
-		--type=json -p '[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"Never"}]'
+	$(KUBECTL) apply --server-side --force-conflicts -k config/dev
 	$(KUBECTL) -n provenance-gate-system rollout status deployment/provenance-gate --timeout=300s
 
 .PHONY: registry-credentials
@@ -116,7 +111,7 @@ registry-credentials: ## Give the webhook read access to a private ghcr package 
 
 .PHONY: undeploy
 undeploy: ## Remove the webhook and its configuration
-	-$(KUBECTL) delete -k config --ignore-not-found
+	-$(KUBECTL) delete -k config/dev --ignore-not-found
 
 .PHONY: verify-f3
 verify-f3: tools ## F3 verifier: the three cases, against real published images

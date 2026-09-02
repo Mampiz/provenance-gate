@@ -54,6 +54,7 @@ type options struct {
 	cacheFailureTTL  time.Duration
 	cacheMaxEntries  int
 	admissionTimeout time.Duration
+	tufCacheDir      string
 	showVersion      bool
 }
 
@@ -87,6 +88,9 @@ func run() error {
 		"Budget for one admission decision. Must stay below the timeoutSeconds "+
 			"in the webhook configuration, so this gives up first and the API "+
 			"server gets an answer rather than a timeout.")
+	flag.StringVar(&opts.tufCacheDir, "tuf-cache-dir", "/tmp/sigstore/tuf",
+		"Where the Sigstore TUF client keeps its metadata. The default $HOME/.sigstore "+
+			"does not exist on a container with a read-only root filesystem.")
 	flag.BoolVar(&opts.showVersion, "version", false, "Print the build identity and exit.")
 	zapOpts.BindFlags(flag.CommandLine)
 	flag.Parse()
@@ -121,7 +125,7 @@ func run() error {
 	// request waited would put a third party's availability in front of every
 	// pod being scheduled.
 	log.Info("fetching the Sigstore trusted root")
-	verifier, err := provenance.NewVerifier(provenance.NewRegistry())
+	verifier, err := provenance.NewVerifier(provenance.NewRegistry(), opts.tufCacheDir)
 	if err != nil {
 		return fmt.Errorf("building the verifier: %w", err)
 	}

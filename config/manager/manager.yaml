@@ -26,7 +26,11 @@ spec:
           type: RuntimeDefault
       containers:
         - name: manager
-          image: ghcr.io/mampiz/provenance-gate:latest
+          # Pinned, never :latest. This project's own Kyverno corpus refuses a
+          # mutable tag, and it refused this Deployment when it carried one,
+          # which is the corpus working rather than a nuisance. A release pins
+          # this; config/overlays/dev points it at a locally built image.
+          image: ghcr.io/mampiz/provenance-gate:v0.1.0
           args:
             - --admission-timeout=4s
             - --cache-ttl=10m
