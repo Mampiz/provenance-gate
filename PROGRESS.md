@@ -12,7 +12,7 @@ limitations": a verifier that does not pass means the phase is not done.
 | F3 | The trust registry, and the webhook that enforces against it | `make verify-f3` | done |
 | F4 | Binding a `WebApp` to the workflow the IDP generated for it | `make verify-f4` | done |
 | F5 | Admission latency p50/p95 with and without cache, coverage, memory under load | `make benchmark` | done |
-| F6 | README and the narrative | reviewed by hand | in progress |
+| F6 | README and the narrative | reviewed by hand | done, except the secure boot section |
 
 ## The F3 verifier
 

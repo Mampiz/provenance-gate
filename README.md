@@ -16,6 +16,8 @@ to this service*, checked against a trust root the workload itself cannot write.
 
 ## What this demonstrates
 
+![The three admissions](docs/assets/verify-f3.gif)
+
 Three admissions, run against images this repository really publishes, by
 [`make verify-f3`](infra/scripts/verify-f3.sh):
 
@@ -134,6 +136,8 @@ admitted and the operator reconciles it into pods that are admitted too; the
 same `WebApp` on a Docker Hub image is refused; the same `WebApp` on a genuinely
 signed image from another workflow is refused for the workflow.
 
+![The WebApp path, end to end](docs/assets/verify-f4.gif)
+
 ## How the chain is built
 
 ```mermaid
@@ -225,6 +229,7 @@ rather than presented as a choice. Full figures and the argument in
 | [IDP integration](integration/idp-backstage/README.md) | What the platform has to change, and why the order matters |
 | [Build log](PROGRESS.md) | The phase graph and what each verifier proves |
 | [Contributing](CONTRIBUTING.md) | Layout, verifiers, and the one change that gets rejected |
+| [Recordings](docs/assets/README.md) | The GIFs, their sources, and how to re-record them |
 
 ## License
 
