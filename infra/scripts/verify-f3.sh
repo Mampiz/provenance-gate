@@ -156,12 +156,12 @@ metadata:
   name: e2e
   namespace: ${NS}
 spec:
-  subject:
-    apiVersion: v1
-    kind: Pod
-    selector:
-      matchLabels:
-        subject: e2e
+  subjects:
+    - apiVersion: v1
+      kind: Pod
+      selector:
+        matchLabels:
+          subject: e2e
   imageRepositories:
     - ${GOOD_IMAGE}
     - ${UNSIGNED_IMAGE}

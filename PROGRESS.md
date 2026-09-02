@@ -10,8 +10,8 @@ limitations": a verifier that does not pass means the phase is not done.
 | F1 | Reusable workflow producing SLSA provenance, keyless cosign signature, SBOM | `make verify-f1` | done |
 | F2 | Kyverno baseline policy corpus, Audit then Enforce | `make verify-f2` | done |
 | F3 | The trust registry, and the webhook that enforces against it | `make verify-f3` | done |
-| F4 | Binding a `WebApp` to the workflow the IDP generated for it | e2e: scaffold, signed build, admitted; foreign image, rejected | not started |
-| F5 | Admission latency p50/p95 with and without cache, coverage, memory under load | one command reproduces the numbers in the README | not started |
+| F4 | Binding a `WebApp` to the workflow the IDP generated for it | `make verify-f4` | done |
+| F5 | Admission latency p50/p95 with and without cache, coverage, memory under load | one command reproduces the numbers in the README | in progress |
 | F6 | README and the narrative | reviewed by hand | not started |
 
 ## The F3 verifier

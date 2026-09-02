@@ -191,9 +191,18 @@ func (h *Handler) trustRootFor(
 }
 
 // matches reports whether a BuildIdentity governs the object under admission.
+// Any one of its subjects matching is enough: they are the shapes one service
+// takes, not conditions that all have to hold at once.
 func matches(identity *provenancev1alpha1.BuildIdentity, req admission.Request, objectLabels labels.Set) bool {
-	subject := identity.Spec.Subject
+	for _, subject := range identity.Spec.Subjects {
+		if subjectMatches(subject, req, objectLabels) {
+			return true
+		}
+	}
+	return false
+}
 
+func subjectMatches(subject provenancev1alpha1.SubjectReference, req admission.Request, objectLabels labels.Set) bool {
 	if subject.Kind != req.Kind.Kind {
 		return false
 	}

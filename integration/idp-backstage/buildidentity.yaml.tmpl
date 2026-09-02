@@ -1,0 +1,54 @@
+# The trust root the IDP scaffolder emits for a service, alongside the WebApp it
+# already applies.
+#
+# Drop this next to webapp.yaml.tmpl in
+# services/scaffolder/internal/template/files/ and it renders from the same
+# template.Params the other files use. The scaffolder applies it with the same
+# server-side apply as the WebApp, under the same field manager, which is what
+# makes it unforgeable: idp-scaffolder owns these fields, and the ClusterRole
+# provenance-gate-registrar is bound to that ServiceAccount and to nobody else.
+#
+# Committing it to the scaffolded repository is deliberate, exactly as
+# webapp.yaml is: the desired state lives with the code and changes through a
+# pull request. Reading it is useful, and writing it is not the service owner's
+# to do.
+apiVersion: provenance.miportfolio.com/v1alpha1
+kind: BuildIdentity
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: idp-scaffolder
+    app.kubernetes.io/part-of: idp
+spec:
+  # One service, two shapes. The WebApp somebody applies, and the pods the
+  # operator creates from it. Both prove the same build identity, and keeping
+  # them in one object means there is no second place to forget.
+  subjects:
+    - apiVersion: platform.miportfolio.com/v1
+      kind: WebApp
+      name: {{ .Name }}
+    - apiVersion: v1
+      kind: Pod
+      selector:
+        matchLabels:
+          # webapp-operator labels the pods it generates with app: <webapp name>.
+          app: {{ .Name }}
+
+  # Only this service's own images. Anything else the workload tries to run is
+  # refused rather than ignored, so a pod cannot carry an unrelated image
+  # alongside its own and have the second go unlooked at.
+  imageRepositories:
+    - ghcr.io/{{ .Owner }}/{{ .Name }}
+
+  provenance:
+    issuer: https://token.actions.githubusercontent.com
+    # The trusted builder: the reusable workflow, not the repository being
+    # built. A caller cannot change what happens inside it without changing
+    # provenance-gate, which is what makes the build SLSA L3.
+    builder: https://github.com/Mampiz/provenance-gate/.github/workflows/build-sign.yml@refs/heads/main
+    # The field that ties an image to THIS service. An image built by any other
+    # repository is refused, however genuine its signature.
+    sourceRepository: https://github.com/{{ .Owner }}/{{ .Name }}
+    workflowPath: .github/workflows/ci.yml
+    workflowRef: refs/heads/{{ .DefaultBranch }}

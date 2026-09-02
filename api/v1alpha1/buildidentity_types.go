@@ -83,8 +83,16 @@ type BuildProvenance struct {
 
 // BuildIdentitySpec defines the trust root for a workload.
 type BuildIdentitySpec struct {
-	// Subject selects the workloads this trust root governs.
-	Subject SubjectReference `json:"subject"`
+	// Subjects selects the workloads this trust root governs. A workload is
+	// governed when it matches any one of them.
+	//
+	// A list rather than a single subject because one service takes more than
+	// one shape in the cluster. A WebApp is admitted, and then the operator
+	// creates a Deployment whose pods are admitted separately. Both are the same
+	// service and both must prove the same build identity, and splitting that
+	// across two BuildIdentity resources would be two places to keep in step.
+	// +kubebuilder:validation:MinItems=1
+	Subjects []SubjectReference `json:"subjects"`
 
 	// Provenance is what those workloads' images must prove.
 	Provenance BuildProvenance `json:"provenance"`

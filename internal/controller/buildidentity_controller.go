@@ -86,13 +86,17 @@ func validate(identity *provenancev1alpha1.BuildIdentity) error {
 		return err
 	}
 
-	subject := identity.Spec.Subject
-	if (subject.Name == "") == (subject.Selector == nil) {
-		return fmt.Errorf("exactly one of subject.name or subject.selector must be set")
+	if len(identity.Spec.Subjects) == 0 {
+		return fmt.Errorf("no subjects: this trust root governs nothing")
 	}
-	if subject.Selector != nil {
-		if _, err := metav1.LabelSelectorAsSelector(subject.Selector); err != nil {
-			return fmt.Errorf("subject.selector does not parse: %w", err)
+	for i, subject := range identity.Spec.Subjects {
+		if (subject.Name == "") == (subject.Selector == nil) {
+			return fmt.Errorf("subjects[%d]: exactly one of name or selector must be set", i)
+		}
+		if subject.Selector != nil {
+			if _, err := metav1.LabelSelectorAsSelector(subject.Selector); err != nil {
+				return fmt.Errorf("subjects[%d].selector does not parse: %w", i, err)
+			}
 		}
 	}
 

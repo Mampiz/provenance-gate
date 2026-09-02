@@ -1,0 +1,44 @@
+# The scaffolded service's CI, publishing through the trusted builder.
+#
+# This replaces the "image" job in
+# services/scaffolder/internal/template/files/.github/workflows/ci.yml.tmpl.
+# The change is that the build is no longer done here: it is delegated to a
+# reusable workflow in another repository, which is the entire point. A build
+# the service's own repository could alter is a build the service's own
+# repository could subvert.
+name: ci
+
+on:
+  push:
+    branches: [{{ .DefaultBranch }}]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  image:
+    # Only publish from the default branch: pull requests build nothing that
+    # anyone could pull by accident.
+    if: github.event_name == 'push'
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+      # The OIDC token is what the whole chain hangs from. Without id-token the
+      # build cannot prove who produced it.
+      id-token: write
+      attestations: write
+    uses: Mampiz/provenance-gate/.github/workflows/build-sign.yml@main
+    with:
+      image: ghcr.io/${{ "{{" }} github.repository {{ "}}" }}

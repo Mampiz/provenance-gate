@@ -114,6 +114,11 @@ kind-load: docker-build ## Load the webhook image into the kind cluster
 .PHONY: deploy
 deploy: kind-load ## Deploy the CRD, RBAC, manager and webhook configuration
 	$(KUBECTL) apply --server-side --force-conflicts -k config/dev
+	@# The dev image keeps the same tag, so kubernetes sees no change and keeps
+	@# running the old binary. Without this the cluster silently serves the
+	@# previous build, and the symptom is a controller complaining about fields
+	@# that the CRD it is looking at does not have.
+	$(KUBECTL) -n provenance-gate-system rollout restart deployment/provenance-gate
 	$(KUBECTL) -n provenance-gate-system rollout status deployment/provenance-gate --timeout=300s
 
 .PHONY: registry-credentials

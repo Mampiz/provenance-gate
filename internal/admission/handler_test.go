@@ -56,11 +56,11 @@ func scheme(t *testing.T) *runtime.Scheme {
 	return s
 }
 
-func buildIdentity(name string, subject provenancev1alpha1.SubjectReference) *provenancev1alpha1.BuildIdentity {
+func buildIdentity(name string, subjects ...provenancev1alpha1.SubjectReference) *provenancev1alpha1.BuildIdentity {
 	return &provenancev1alpha1.BuildIdentity{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "apps"},
 		Spec: provenancev1alpha1.BuildIdentitySpec{
-			Subject:           subject,
+			Subjects:          subjects,
 			ImageRepositories: []string{"ghcr.io/mampiz/my-service"},
 			Provenance: provenancev1alpha1.BuildProvenance{
 				Issuer:           issuer,
@@ -356,4 +356,86 @@ func TestCachedRejectionsDoNotReVerify(t *testing.T) {
 	if verifier.calls != 1 {
 		t.Errorf("verified %d times, expected the rejection to be cached", verifier.calls)
 	}
+}
+
+func TestOneTrustRootGovernsBothTheCustomResourceAndItsPods(t *testing.T) {
+	// A service takes more than one shape. The WebApp is admitted, then the
+	// operator creates a Deployment whose pods are admitted separately, and both
+	// have to prove the same build identity. Splitting that across two
+	// BuildIdentity resources would be two places to keep in step.
+	verifier := &fakeVerifier{builtFrom: map[string]string{"ghcr.io/mampiz/my-service:v1": ourRepo}}
+	identity := buildIdentity("my-service",
+		provenancev1alpha1.SubjectReference{
+			APIVersion: "platform.miportfolio.com/v1",
+			Kind:       "WebApp",
+			Name:       "my-service",
+		},
+		provenancev1alpha1.SubjectReference{
+			APIVersion: "v1",
+			Kind:       "Pod",
+			// The operator labels the pods it creates with app: <webapp name>.
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "my-service"}},
+		},
+	)
+	h := handlerWith(t, verifier, identity)
+
+	t.Run("the custom resource", func(t *testing.T) {
+		raw, err := json.Marshal(map[string]any{
+			"apiVersion": "platform.miportfolio.com/v1",
+			"kind":       "WebApp",
+			"metadata":   map[string]any{"name": "my-service", "namespace": "apps"},
+			"spec":       map[string]any{"image": "ghcr.io/mampiz/my-service:v1", "port": 8080},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp := h.Handle(context.Background(), admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+			Kind:      metav1.GroupVersionKind{Group: "platform.miportfolio.com", Version: "v1", Kind: "WebApp"},
+			Namespace: "apps",
+			Name:      "my-service",
+			Operation: admissionv1.Create,
+			Object:    runtime.RawExtension{Raw: raw},
+		}})
+		if !resp.Allowed {
+			t.Fatalf("the WebApp was refused: %s", resp.Result.Message)
+		}
+	})
+
+	t.Run("the pod the operator creates from it", func(t *testing.T) {
+		req := podRequest(t, "my-service-deployment-7d9f8-x2kqp", "ghcr.io/mampiz/my-service:v1")
+		var pod corev1.Pod
+		if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
+			t.Fatal(err)
+		}
+		pod.Labels = map[string]string{"app": "my-service"}
+		raw, err := json.Marshal(&pod)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Object.Raw = raw
+
+		resp := h.Handle(context.Background(), req)
+		if !resp.Allowed {
+			t.Fatalf("the operator's pod was refused: %s", resp.Result.Message)
+		}
+	})
+
+	t.Run("a pod of a different service is not governed by it", func(t *testing.T) {
+		req := podRequest(t, "someone-else", "ghcr.io/mampiz/my-service:v1")
+		var pod corev1.Pod
+		if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
+			t.Fatal(err)
+		}
+		pod.Labels = map[string]string{"app": "someone-else"}
+		raw, err := json.Marshal(&pod)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Object.Raw = raw
+
+		resp := h.Handle(context.Background(), req)
+		if resp.Allowed {
+			t.Fatal("a pod belonging to no trust root was admitted")
+		}
+	})
 }
