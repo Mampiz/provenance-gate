@@ -1,7 +1,13 @@
 # 0002. An admission webhook of our own, alongside Kyverno and not instead of it
 
-- Status: Accepted
+- Status: Superseded by [0007](0007-the-boundary-with-kyverno-was-wrong.md)
 - Date: 2026-09-02
+
+> **This record is wrong.** Its central claim, that Kyverno cannot express a
+> per-resource build identity check, was tested against Kyverno 1.19 and does
+> not hold. It is kept unedited because the reasoning it contains is what ADR
+> 0007 argues against. See
+> [the probe](evidence/kyverno-cel-probe.sh) for how it was disproved.
 
 ## Context
 
