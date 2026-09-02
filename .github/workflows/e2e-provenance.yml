@@ -41,6 +41,10 @@ jobs:
       - uses: ./.github/actions/kind-cluster
 
       - name: F1
+        env:
+          # gh attestation verify queries the attestations API, and gh on a
+          # runner has no logged-in session to take a token from.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make verify-f1
 
       - name: Deploy the webhook

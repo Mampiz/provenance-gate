@@ -45,6 +45,13 @@ for tool in gh cosign crane jq; do
   command -v "${tool}" >/dev/null 2>&1 || fail "${tool} not found, run 'make tools'"
 done
 
+# gh needs a token to reach the attestations API. On a laptop it comes from
+# "gh auth login"; on a runner it has to be handed over explicitly, and the
+# failure without it is an unhelpful "HTTP 401" three steps later.
+if ! gh auth status >/dev/null 2>&1 && [ -z "${GH_TOKEN:-}" ] && [ -z "${GITHUB_TOKEN:-}" ]; then
+  fail "gh is not authenticated and neither GH_TOKEN nor GITHUB_TOKEN is set"
+fi
+
 WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
 
@@ -64,8 +71,8 @@ pass "the digest is an image manifest (${media})"
 step "2. The SLSA provenance attestation verifies"
 gh attestation verify "oci://${IMAGE}@${DIGEST}" --repo "${REPO}" \
   --predicate-type "https://slsa.dev/provenance/v1" \
-  --format json > "${WORK}/provenance.json" 2>/dev/null \
-  || fail "gh attestation verify rejected the provenance attestation"
+  --format json > "${WORK}/provenance.json" 2>"${WORK}/provenance.err" \
+  || fail "gh attestation verify rejected the provenance attestation: $(tr -d '\r' < "${WORK}/provenance.err" | tail -3 | tr '\n' ' ')"
 count="$(jq 'length' "${WORK}/provenance.json")"
 [ "${count}" -ge 1 ] || fail "no provenance attestation came back"
 pass "gh attestation verify accepted ${count} provenance attestation(s)"
@@ -113,8 +120,8 @@ pass "cosign verified the signature against ${BUILDER_IDENTITY}"
 step "6. The SBOM is attested by the same identity"
 gh attestation verify "oci://${IMAGE}@${DIGEST}" --repo "${REPO}" \
   --predicate-type "https://spdx.dev/Document" \
-  --format json > "${WORK}/sbom.json" 2>/dev/null \
-  || fail "gh attestation verify found no valid SPDX attestation"
+  --format json > "${WORK}/sbom.json" 2>"${WORK}/sbom.err" \
+  || fail "gh attestation verify found no valid SPDX attestation: $(tr -d '\r' < "${WORK}/sbom.err" | tail -3 | tr '\n' ' ')"
 sbom_san="$(jq -r '.[0].verificationResult.signature.certificate.subjectAlternativeName' "${WORK}/sbom.json")"
 [ "${sbom_san}" = "${BUILDER_IDENTITY}" ] \
   || fail "the SBOM is signed by '${sbom_san}', not by the builder"
