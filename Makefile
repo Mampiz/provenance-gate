@@ -16,6 +16,8 @@ KYVERNO_VERSION      ?= v1.19.0
 KYVERNO_URL          ?= https://github.com/kyverno/kyverno/releases/download/$(KYVERNO_VERSION)/install.yaml
 CONTROLLER_GEN_VERSION ?= v0.21.0
 GOLANGCI_LINT_VERSION ?= v2.13.2
+OPERATOR_VERSION     ?= v1.0.0
+OPERATOR_INSTALL_URL ?= https://raw.githubusercontent.com/Mampiz/webapp-operator/$(OPERATOR_VERSION)/dist/install.yaml
 GITHUB_OWNER         ?= Mampiz
 
 KUBECTL := kubectl --context=$(KUBE_CONTEXT)
@@ -67,6 +69,19 @@ bootstrap: preflight cluster-up cert-manager kyverno policies-audit ## Bring the
 .PHONY: verify-f0
 verify-f0: ## F0 verifier: local cluster, cert-manager issuing certificates, Go module clean
 	@KUBE_CONTEXT=$(KUBE_CONTEXT) ./infra/scripts/verify-f0.sh
+
+##@ F4 - Integration with the operator and the IDP
+
+.PHONY: webapp-operator
+webapp-operator: ## Install webapp-operator $(OPERATOR_VERSION), consumed and never modified
+	$(KUBECTL) apply -f $(OPERATOR_INSTALL_URL)
+	$(KUBECTL) -n webapp-operator-system wait deployment/webapp-operator-controller-manager \
+		--for=condition=Available --timeout=300s
+	@KUBE_CONTEXT=$(KUBE_CONTEXT) ./infra/scripts/wait-operator-webhook.sh
+
+.PHONY: verify-f4
+verify-f4: tools ## F4 verifier: a WebApp is admitted only with provenance from its own service's workflow
+	@KUBE_CONTEXT=$(KUBE_CONTEXT) ./infra/scripts/verify-f4.sh
 
 ##@ F3 - The webhook
 

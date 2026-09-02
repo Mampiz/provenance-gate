@@ -123,6 +123,12 @@ for required in kube-system "${SYSTEM_NS}"; do
 done
 pass "kube-system and ${SYSTEM_NS} are excluded from the webhook"
 
+optin="$(${K} get validatingwebhookconfiguration provenance-gate -o json \
+  | jq -r '.webhooks[0].namespaceSelector.matchLabels["provenance.miportfolio.com/enforce"] // ""')"
+[ "${optin}" = "true" ] \
+  || fail "the webhook has no opt-in label selector, so it governs every namespace and nothing can be installed without a trust root"
+pass "the webhook governs only namespaces labelled provenance.miportfolio.com/enforce=true"
+
 step "3. The subjects exist in the registry"
 resolve() {
   crane digest "$1:current" 2>/dev/null || crane digest "$1:latest" 2>/dev/null || true
@@ -139,6 +145,10 @@ pass "decoy    ${DECOY_IMAGE}@${decoy_digest}"
 
 step "4. A trust root that names this repository's release workflow"
 ${K} create namespace "${NS}" --dry-run=client -o yaml | ${K} apply -f - >/dev/null
+# The webhook governs a namespace only when it is labelled. Without this the
+# cases below would all be admitted, and the verifier would pass while proving
+# nothing.
+${K} label namespace "${NS}" provenance.miportfolio.com/enforce=true --overwrite >/dev/null
 ${K} apply -f - >/dev/null <<MANIFEST
 apiVersion: provenance.miportfolio.com/v1alpha1
 kind: BuildIdentity

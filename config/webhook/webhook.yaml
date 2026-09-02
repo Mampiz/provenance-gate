@@ -70,12 +70,28 @@ webhooks:
     timeoutSeconds: 5
 
     namespaceSelector:
+      # Opt in, namespace by namespace. Inside a labelled namespace the webhook
+      # fails closed: a workload with no trust root is refused. Outside one it
+      # does nothing.
+      #
+      # This is not a softer policy, it is a scoped one, and it was learned the
+      # hard way. Governing every namespace and refusing anything without a
+      # BuildIdentity means installing any new component requires writing a
+      # trust root for it first, in a namespace that does not exist yet. It
+      # blocked this project's own operator, and the failure is a ReplicaSet
+      # quietly creating no pods.
+      #
+      # The label is a platform decision, not a workload one: whoever can label
+      # a namespace decides whether it is governed, and that is not the same
+      # person as the owner of a service running in it. See ADR 0010.
+      matchLabels:
+        provenance.miportfolio.com/enforce: "true"
       matchExpressions:
-        # kube-system and this webhook's own namespace are excluded, and this is
-        # not a convenience. A webhook with failurePolicy Fail that matches the
-        # namespace it runs in cannot be restarted once it is down: the API
-        # server refuses to create its own replacement pod because it cannot
-        # reach the webhook that would have to admit it. The cluster is then
+        # A second net under the first. Even if one of these were labelled by
+        # mistake, it stays out. A webhook with failurePolicy Fail that matches
+        # the namespace it runs in cannot be restarted once it is down: the API
+        # server refuses to create its own replacement pod, because creating it
+        # needs admission from the webhook that is down. The cluster is then
         # unfixable from inside.
         - key: kubernetes.io/metadata.name
           operator: NotIn

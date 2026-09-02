@@ -16,3 +16,4 @@ see what the alternatives were and why they lost, not just what the code does.
 | [0007](0007-the-boundary-with-kyverno-was-wrong.md) | The boundary with Kyverno was wrong, and where it actually falls | Accepted |
 | [0008](0008-sigstore-go-with-go-containerregistry.md) | Verify with sigstore-go and go-containerregistry, not cosign's library | Accepted |
 | [0009](0009-failure-policy-starts-at-ignore.md) | failurePolicy starts at Ignore, and what it costs | Accepted |
+| [0010](0010-the-webhook-is-opt-in-per-namespace.md) | The webhook governs a namespace only when that namespace opts in | Accepted |
