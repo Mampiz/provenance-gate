@@ -45,6 +45,21 @@ for tool in crane jq; do
   command -v "${tool}" >/dev/null 2>&1 || fail "${tool} not found, run 'make tools'"
 done
 
+# Prefer this commit's image, but any image release.yml published will do. F1
+# is the verifier that checks what was published for THIS commit; these two are
+# about admission behaviour, and tying them to the current commit would make
+# them unrunnable for the minutes after any commit, including a docs-only one.
+resolve_service_image() {
+  local tag
+  tag="sha-$(git -C "${ROOT}" rev-parse HEAD | cut -c1-12)"
+  if crane digest "${1}:${tag}" 2>/dev/null; then
+    return 0
+  fi
+  tag="$(crane ls "${1}" 2>/dev/null | grep '^sha-' | tail -1)"
+  [ -n "${tag}" ] || return 1
+  printf '%s' "$(crane digest "${1}:${tag}")"
+}
+
 REJECTION=""
 apply_webapp() {
   local image="$1" out
@@ -97,8 +112,8 @@ ${K} -n provenance-gate-system wait deployment/provenance-gate \
 pass "webapp-operator and provenance-gate are both running"
 
 step "2. The subjects exist in the registry"
-service_digest="$(crane digest "${SERVICE_IMAGE}:sha-$(git -C "${ROOT}" rev-parse HEAD | cut -c1-12)" 2>/dev/null || true)"
-[ -n "${service_digest}" ] || fail "cannot resolve ${SERVICE_IMAGE} for this commit, has the release workflow run?"
+service_digest="$(resolve_service_image "${SERVICE_IMAGE}" || true)"
+[ -n "${service_digest}" ] || fail "no image published in ${SERVICE_IMAGE}, has the release workflow ever run?"
 decoy_digest="$(crane digest "${DECOY_IMAGE}:current" 2>/dev/null || true)"
 [ -n "${decoy_digest}" ] || fail "cannot resolve ${DECOY_IMAGE}, has the testdata workflow run?"
 pass "service image ${SERVICE_IMAGE}@${service_digest}"

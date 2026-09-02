@@ -38,7 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # The verifiers are the contract of every phase in this repository. A typo
-      # in one of them would show up as a phase silently passing.
+      # Through make, so CI uses the pinned shellcheck rather than whatever
+      # version the runner image happens to ship. A linter that differs between
+      # a laptop and CI is a linter that fails only in CI.
       - name: shellcheck
-        run: shellcheck infra/scripts/*.sh
+        run: make lint-shell

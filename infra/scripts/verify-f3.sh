@@ -50,6 +50,21 @@ done
 
 # applyPod returns 0 when the pod is admitted, 1 when it is refused, and writes
 # the API server's message to ${REJECTION}.
+# Prefer this commit's image, but any image release.yml published will do. F1
+# is the verifier that checks what was published for THIS commit; these two are
+# about admission behaviour, and tying them to the current commit would make
+# them unrunnable for the minutes after any commit, including a docs-only one.
+resolve_service_image() {
+  local tag
+  tag="sha-$(git -C "${ROOT}" rev-parse HEAD | cut -c1-12)"
+  if crane digest "${1}:${tag}" 2>/dev/null; then
+    return 0
+  fi
+  tag="$(crane ls "${1}" 2>/dev/null | grep '^sha-' | tail -1)"
+  [ -n "${tag}" ] || return 1
+  printf '%s' "$(crane digest "${1}:${tag}")"
+}
+
 REJECTION=""
 apply_pod() {
   local name="$1" image="$2" labels="${3:-}"
@@ -133,8 +148,8 @@ step "3. The subjects exist in the registry"
 resolve() {
   crane digest "$1:current" 2>/dev/null || crane digest "$1:latest" 2>/dev/null || true
 }
-good_digest="$(crane digest "${GOOD_IMAGE}:sha-$(git -C "${ROOT}" rev-parse HEAD | cut -c1-12)" 2>/dev/null || true)"
-[ -n "${good_digest}" ] || fail "cannot resolve ${GOOD_IMAGE} for this commit, has the release workflow run?"
+good_digest="$(resolve_service_image "${GOOD_IMAGE}" || true)"
+[ -n "${good_digest}" ] || fail "no image published in ${GOOD_IMAGE}, has the release workflow ever run?"
 unsigned_digest="$(resolve "${UNSIGNED_IMAGE}")"
 [ -n "${unsigned_digest}" ] || fail "cannot resolve ${UNSIGNED_IMAGE}, has the testdata workflow run?"
 decoy_digest="$(resolve "${DECOY_IMAGE}")"

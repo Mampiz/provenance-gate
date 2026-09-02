@@ -31,7 +31,9 @@ fail() { printf '  \033[31mFAIL\033[0m  %s\n' "$1" >&2; exit 1; }
 
 PF_PID=""
 cleanup() {
-  [ -n "${PF_PID}" ] && kill "${PF_PID}" 2>/dev/null || true
+  if [ -n "${PF_PID}" ]; then
+    kill "${PF_PID}" 2>/dev/null || true
+  fi
   ${K} delete namespace "${NS}" --ignore-not-found --wait=false >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
