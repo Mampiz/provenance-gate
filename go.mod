@@ -3,7 +3,7 @@ module github.com/Mampiz/provenance-gate
 go 1.26.6
 
 require (
-	github.com/google/go-containerregistry v0.22.0
+	github.com/google/go-containerregistry v0.22.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/sigstore/sigstore-go v1.3.0
 	k8s.io/api v0.37.0
