@@ -1,6 +1,6 @@
 # Build stage. Pinned by digest, not by tag: a project about verifying what an
 # artifact is made of has no business building on a moving base image.
-FROM golang:1.26.6-trixie AS build
+FROM golang:1.27.1-trixie AS build
 
 WORKDIR /src
 
