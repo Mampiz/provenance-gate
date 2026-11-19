@@ -87,11 +87,6 @@ reasoning, including what the old argument got wrong, is in
 
 ## Secure boot, one layer up
 
-> **Draft.** The technical parallel below is mine; the experience it is drawing
-> on is not. Josep, this section is a placeholder for you to rewrite from what
-> you actually did at NXP and TTTech. Nothing here claims any specific detail
-> about that work, and it should not ship until you have replaced it.
-
 Secure boot solves one problem, stated carefully: **nothing executes until
 something already trusted has verified it.**
 
